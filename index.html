@@ -31,7 +31,6 @@
         /* ตั้งค่าหน้า A4 แบบ Fix Pixel เพื่อป้องกันปัญหาขอบแหว่งและสเกลเพี้ยนบนจอต่างๆ */
         .a4-page {
             width: 794px; /* กว้างมาตรฐาน A4 (96 DPI) */
-            /* ลบ height: 1122px ออกไป เพื่อป้องกันปัญหาหน้ากระดาษแถม */
             padding: 75px 56px 56px 56px; /* ขอบบน ~2cm (75px) ด้านอื่น ~1.5cm (56px) */
             box-sizing: border-box;
             background-color: white;
@@ -65,6 +64,7 @@
             const [formData, setFormData] = useState({
                 visitNumber: '1',
                 visitDate: new Date().toISOString().split('T')[0],
+                birthDate: '', // วันคลอดของทารก
                 motherName: '',
                 infantName: '',
                 bp: '',
@@ -140,21 +140,21 @@
             const triggerPDFDownload = () => {
                 setStatus({ type: 'loading', message: 'กำลังแปลงข้อมูลรายงานเป็นไฟล์ PDF มารดาและทารก...' });
                 
-                // ดันหน้าจอขึ้นไปบนซ้ายสุด ป้องกัน html2canvas บัคสไลด์เลื่อนตกขอบ
+                // เลื่อนขึ้นไปบนสุดป้องกันการจับภาพผิดตำแหน่ง
                 window.scrollTo(0, 0);
 
                 setTimeout(() => {
                     const element = document.getElementById('report-content');
 
                     const opt = {
-                        margin: 0, // เว้นระยะโดยใช้ CSS ภายใน .a4-page แล้ว
+                        margin: 0,
                         filename: `เยี่ยมหลังคลอด_${formData.motherName || 'ไม่ระบุชื่อ'}_ครั้งที่${formData.visitNumber}.pdf`,
                         image: { type: 'jpeg', quality: 1.0 },
                         html2canvas: { 
                             scale: 2, 
                             useCORS: true, 
                             scrollY: 0,
-                            scrollX: 0 // บังคับเริ่มจับภาพจากแกน X ที่ 0
+                            scrollX: 0 
                         },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
                     };
@@ -224,13 +224,12 @@
 
                     {!isPrinting && status.message && (
                         <div className="w-full max-w-3xl mt-4 px-4 no-print">
-                            <div className={`p-4 rounded-xl text-center font-medium shadow-md transition-all ${status.type === 'error' ? 'bg-red-100 text-red-700 border border-red-200' : status.type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                            <div className={`p-4 rounded-xl text-center font-medium shadow-md transition-all ${status.type === 'error' ? 'bg-red-100 text-red-700' : status.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                                 {status.message}
                             </div>
                         </div>
                     )}
 
-                    {/* ถ้าโหมดพรีวิว ให้กินพื้นที่เต็มและทำพื้นหลังแยก ถ้าโหมดกรอก ให้มีกรอบแคบๆ */}
                     <div className={`transition-all duration-300 w-full ${isPrinting ? 'bg-gray-500 py-8 overflow-x-auto' : 'max-w-3xl my-4 md:my-8 px-4'}`}>
                         
                         {/* ========================================================= */}
@@ -238,9 +237,6 @@
                         {/* ========================================================= */}
                         {isPrinting ? (
                             
-                            /* report-content คือส่วนที่ html2pdf จะดูดไปทำ PDF 
-                               ต้องเป็นสีขาวล้วน กว้าง 794px เป๊ะๆ จัด margin 0 auto ให้อยู่ตรงกลางบนหน้าพรีวิว 
-                               แต่ไม่มี background หรือ gap ใดๆ มากวน PDF */
                             <div id="report-content" className="bg-white mx-auto shadow-2xl" style={{ width: '794px' }}>
                                 
                                 {/* 📄 หน้าที่ 1: รายงานคุณแม่หลังคลอด */}
@@ -253,9 +249,10 @@
 
                                         <div className="grid grid-cols-2 gap-y-3 mb-4 text-[15px] pb-4 border-b border-dashed border-gray-300">
                                             <div><strong>ชื่อ-สกุล มารดา:</strong> <span className="ml-1 text-gray-800">{formData.motherName || '...................................................'}</span></div>
-                                            <div className="text-right"><strong>วันที่ประเมินเยี่ยมหลังคลอด:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.visitDate)}</span></div>
+                                            <div className="text-right"><strong>วันคลอด:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.birthDate)}</span></div>
                                             <div><strong>ครั้งที่ลงเยี่ยม:</strong> <span className="ml-1 text-gray-800">เยี่ยมครั้งที่ {formData.visitNumber}</span></div>
-                                            <div className="text-right"><strong>หน่วยบริการ:</strong> <span className="ml-1 text-gray-800">รพ.สต.เกาะแต้ว</span></div>
+                                            <div className="text-right"><strong>วันที่ประเมินเยี่ยมหลังคลอด:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.visitDate)}</span></div>
+                                            <div><strong>หน่วยบริการ:</strong> <span className="ml-1 text-gray-800">รพ.สต.เกาะแต้ว</span></div>
                                         </div>
 
                                         <div className="mb-4">
@@ -300,7 +297,6 @@
                                     </div>
                                 </div>
 
-                                {/* ✂️ ตัวบังคับตัดหน้าสำหรับ PDF ห้ามเอาออก */}
                                 <div className="html2pdf__page-break"></div> 
 
                                 {/* 📄 หน้าที่ 2: รายงานประเมินสุขภาพทารก */}
@@ -316,6 +312,11 @@
                                             <span className="text-[15px] font-semibold text-gray-950">
                                                 ชื่อ-สกุล ทารก: <span className="font-bold text-pink-700 bg-white px-3 py-1 rounded border border-gray-300 ml-2">{formData.infantName || '...................................................'}</span>
                                             </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-y-3 mb-4 text-[15px] pb-4 border-b border-dashed border-gray-300">
+                                            <div><strong>วันคลอดทารก:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.birthDate)}</span></div>
+                                            <div className="text-right"><strong>วันที่ประเมินเยี่ยม:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.visitDate)}</span></div>
                                         </div>
 
                                         <div className="mb-5">
@@ -374,6 +375,7 @@
                                 </div>
 
                                 <div className="p-6 md:p-8">
+                                    {/* ข้อมูลทั่วไปประกอบการประเมิน */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-1">👩 ชื่อ-สกุล มารดา</label>
@@ -388,11 +390,16 @@
                                                 placeholder="เช่น เด็กชายสมศักดิ์ ใจดี" />
                                         </div>
                                         <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1">👶 วันเกิด / วันคลอด</label>
+                                            <input type="date" name="birthDate" value={formData.birthDate} onChange={handleInputChange} 
+                                                className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm" />
+                                        </div>
+                                        <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-1">📅 วันที่ประเมินลงเยี่ยม</label>
                                             <input type="date" name="visitDate" value={formData.visitDate} onChange={handleInputChange} 
                                                 className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm" />
                                         </div>
-                                        <div>
+                                        <div className="md:col-span-2">
                                             <label className="block text-sm font-semibold text-gray-700 mb-1">🏆 เยี่ยมครั้งที่</label>
                                             <select name="visitNumber" value={formData.visitNumber} onChange={handleInputChange} 
                                                 className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm">
@@ -416,6 +423,7 @@
                                         </button>
                                     </div>
 
+                                    {/* แท็บตรวจร่างกาย มารดา */}
                                     <div className={`${activeTab === 'mother' ? 'block' : 'hidden'} mb-8 animate-fade-in`}>
                                         <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                                             <span className="bg-pink-100 text-pink-600 w-7 h-7 rounded-full flex items-center justify-center mr-2 text-sm">👩</span>
@@ -446,6 +454,7 @@
                                         </div>
                                     </div>
 
+                                    {/* แท็บตรวจร่างกาย ทารก */}
                                     <div className={`${activeTab === 'infant' ? 'block' : 'hidden'} mb-8 animate-fade-in`}>
                                         <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                                             <span className="bg-blue-100 text-blue-600 w-7 h-7 rounded-full flex items-center justify-center mr-2 text-sm">👶</span>
