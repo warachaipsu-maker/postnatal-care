@@ -5,15 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบบันทึกเยี่ยมหลังคลอด - รพ.สต.เกาะแต้ว</title>
     
-    <!-- นำเข้า Tailwind CSS สำหรับการจัดเลย์เอาท์ -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- นำเข้า React และ ReactDOM แบบ Browser-friendly -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-    
-    <!-- นำเข้า html2pdf.js สำหรับปริ้น PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
@@ -28,10 +23,10 @@
             .no-print { display: none !important; }
         }
 
-        /* ตั้งค่าหน้า A4 แบบ Fix Pixel เพื่อป้องกันปัญหาขอบแหว่งและสเกลเพี้ยนบนจอต่างๆ */
         .a4-page {
-            width: 794px; /* กว้างมาตรฐาน A4 (96 DPI) */
-            padding: 75px 56px 56px 56px; /* ขอบบน ~2cm (75px) ด้านอื่น ~1.5cm (56px) */
+            width: 794px; 
+            height: 1122px; 
+            padding: 75px 56px 56px 56px; 
             box-sizing: border-box;
             background-color: white;
             display: flex;
@@ -39,13 +34,12 @@
             justify-content: space-between;
         }
 
-        .animate-fade-in { 
-            animation: fadeIn 0.3s ease-in-out; 
-        }
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
         
-        @keyframes fadeIn { 
-            from { opacity: 0; transform: translateY(-5px); } 
-            to { opacity: 1; transform: translateY(0); } 
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
         }
     </style>
 </head>
@@ -56,7 +50,7 @@
         const { useState } = React;
 
         // ==========================================
-        // ตั้งค่า URL ของ Google Apps Script ตรงนี้
+        // ใส่ URL ของ Google Apps Script ตรงนี้ครับ
         // ==========================================
         const GOOGLE_SHEET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyiasS6xML870dGQhKj2HXQDIX50C-tRz8CN-pu-XGHkAr4T377PQy-Cn9K0HabblGz/exec"; 
 
@@ -64,7 +58,7 @@
             const [formData, setFormData] = useState({
                 visitNumber: '1',
                 visitDate: new Date().toISOString().split('T')[0],
-                birthDate: '', // วันคลอดของทารก
+                deliveryDate: '',
                 motherName: '',
                 infantName: '',
                 bp: '',
@@ -79,22 +73,19 @@
             const [activeTab, setActiveTab] = useState('mother');
             const [isPrinting, setIsPrinting] = useState(false);
 
+            const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [searchResults, setSearchResults] = useState([]);
+            const [isSearching, setIsSearching] = useState(false);
+
             const [motherChecklist, setMotherChecklist] = useState({
-                vitalSigns: true,
-                breast: true,
-                uterus: true,
-                lochia: true,
-                perineum: true,
-                mentalHealth: true,
-                contraception: true
+                vitalSigns: true, breast: true, uterus: true, lochia: true,
+                perineum: true, mentalHealth: true, contraception: true
             });
 
             const [infantChecklist, setInfantChecklist] = useState({
-                vitalSigns: true,
-                feeding: true,
-                umbilicalCord: true,
-                jaundice: true,
-                excretion: true
+                vitalSigns: true, feeding: true, umbilicalCord: true,
+                jaundice: true, excretion: true
             });
 
             const [motherNotes, setMotherNotes] = useState({});
@@ -107,25 +98,14 @@
                 setFormData(prev => ({ ...prev, [name]: value }));
             };
 
-            const toggleMotherCheck = (key) => {
-                setMotherChecklist(prev => ({ ...prev, [key]: !prev[key] }));
-            };
-
-            const toggleInfantCheck = (key) => {
-                setInfantChecklist(prev => ({ ...prev, [key]: !prev[key] }));
-            };
-
-            const handleMotherNoteChange = (key, value) => {
-                setMotherNotes(prev => ({ ...prev, [key]: value }));
-            };
-
-            const handleInfantNoteChange = (key, value) => {
-                setInfantNotes(prev => ({ ...prev, [key]: value }));
-            };
+            const toggleMotherCheck = (key) => setMotherChecklist(prev => ({ ...prev, [key]: !prev[key] }));
+            const toggleInfantCheck = (key) => setInfantChecklist(prev => ({ ...prev, [key]: !prev[key] }));
+            const handleMotherNoteChange = (key, value) => setMotherNotes(prev => ({ ...prev, [key]: value }));
+            const handleInfantNoteChange = (key, value) => setInfantNotes(prev => ({ ...prev, [key]: value }));
 
             const formatThaiDate = (dateStr) => {
                 if (!dateStr) return '-';
-                const parts = dateStr.split('-');
+                const parts = String(dateStr).split('T')[0].split('-');
                 if (parts.length !== 3) return dateStr;
                 const year = parseInt(parts[0]) + 543;
                 const monthNames = [
@@ -138,24 +118,16 @@
             };
 
             const triggerPDFDownload = () => {
-                setStatus({ type: 'loading', message: 'กำลังแปลงข้อมูลรายงานเป็นไฟล์ PDF มารดาและทารก...' });
-                
-                // เลื่อนขึ้นไปบนสุดป้องกันการจับภาพผิดตำแหน่ง
+                setStatus({ type: 'loading', message: 'กำลังแปลงข้อมูลรายงานเป็นไฟล์ PDF...' });
                 window.scrollTo(0, 0);
 
                 setTimeout(() => {
                     const element = document.getElementById('report-content');
-
                     const opt = {
                         margin: 0,
                         filename: `เยี่ยมหลังคลอด_${formData.motherName || 'ไม่ระบุชื่อ'}_ครั้งที่${formData.visitNumber}.pdf`,
                         image: { type: 'jpeg', quality: 1.0 },
-                        html2canvas: { 
-                            scale: 2, 
-                            useCORS: true, 
-                            scrollY: 0,
-                            scrollX: 0 
-                        },
+                        html2canvas: { scale: 2, useCORS: true, scrollY: 0, scrollX: 0 },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
                     };
 
@@ -163,7 +135,7 @@
                         setStatus({ type: 'success', message: 'ดาวน์โหลดไฟล์ PDF เรียบร้อยแล้ว!' });
                         setTimeout(() => setStatus({ type: '', message: '' }), 4000);
                     }).catch(err => {
-                        setStatus({ type: 'error', message: 'เกิดข้อผิดพลาดในการสร้างไฟล์ PDF กรุณาลองใหม่อีกครั้ง' });
+                        setStatus({ type: 'error', message: 'เกิดข้อผิดพลาดในการสร้างไฟล์ PDF' });
                     });
                 }, 500);
             };
@@ -173,38 +145,104 @@
                     setStatus({ type: 'error', message: 'กรุณาใส่ URL ของ Google Apps Script ในโค้ดก่อนครับ' });
                     return;
                 }
-
-                setStatus({ type: 'loading', message: 'กำลังบันทึกข้อมูลและส่งสัญญาณไปยัง Google Sheets...' });
+                setStatus({ type: 'loading', message: 'กำลังบันทึกข้อมูล...' });
 
                 const payload = {
                     ...formData,
-                    motherChecklist,
-                    infantChecklist,
-                    motherNotes,
-                    infantNotes
+                    motherChecklist, infantChecklist,
+                    motherNotes, infantNotes
                 };
 
                 try {
                     await fetch(GOOGLE_SHEET_WEB_APP_URL, {
                         method: 'POST',
                         mode: 'no-cors',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    
-                    setStatus({ type: 'success', message: 'ส่งข้อมูลไปบันทึกลงฐานข้อมูล Google Sheets เรียบร้อยแล้วครับ!' });
+                    setStatus({ type: 'success', message: 'บันทึกลง Google Sheets เรียบร้อยแล้ว!' });
                     setTimeout(() => setStatus({ type: '', message: '' }), 5000);
                 } catch (error) {
-                    setStatus({ type: 'error', message: 'เชื่อมต่อฐานข้อมูลไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตหรือ URL' });
+                    setStatus({ type: 'error', message: 'เชื่อมต่อฐานข้อมูลไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต' });
                 }
+            };
+
+            const handleSearch = async () => {
+                if (!GOOGLE_SHEET_WEB_APP_URL) {
+                    alert("กรุณาใส่ URL ของ Google Apps Script ในโค้ดก่อนครับ");
+                    return;
+                }
+                setIsSearching(true);
+                try {
+                    const response = await fetch(`${GOOGLE_SHEET_WEB_APP_URL}?q=${encodeURIComponent(searchQuery)}`);
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        setSearchResults(result.data);
+                    } else {
+                        alert("เกิดข้อผิดพลาด: " + result.message);
+                    }
+                } catch (error) {
+                    alert("ไม่สามารถค้นหาข้อมูลได้ โปรดตรวจสอบ URL ของ Apps Script");
+                } finally {
+                    setIsSearching(false);
+                }
+            };
+
+            // ฟังก์ชันโหลดข้อมูลปรับปรุงใหม่ตรงตามตำแหน่ง Google Sheets จริงของคุณคลิม
+            const loadRecordForPrint = (record) => {
+                if (record.rawData && Object.keys(record.rawData).length > 0) {
+                    // 1. กรณีรายการใหม่ที่มี Raw Data
+                    const data = record.rawData;
+                    setFormData({
+                        visitNumber: data.visitNumber || '1',
+                        visitDate: data.visitDate ? String(data.visitDate).split('T')[0] : '',
+                        deliveryDate: data.deliveryDate ? String(data.deliveryDate).split('T')[0] : '',
+                        motherName: data.motherName || '',
+                        infantName: data.infantName || '',
+                        bp: data.bp || '',
+                        weight: data.weight || '',
+                        infantWeight: data.infantWeight || '',
+                        infantLength: data.infantLength || '',
+                        infantHeadCircum: data.infantHeadCircum || '',
+                        infantTemp: data.infantTemp || '',
+                        note: data.note || ''
+                    });
+                    
+                    if (data.motherChecklist) setMotherChecklist(data.motherChecklist);
+                    if (data.infantChecklist) setInfantChecklist(data.infantChecklist);
+                    if (data.motherNotes) setMotherNotes(data.motherNotes);
+                    if (data.infantNotes) setInfantNotes(data.infantNotes);
+                } else {
+                    // 2. กรณีแกะค่าจากคอลัมน์ตรงๆ ตามตารางสเปรดชีตจริงของคุณคลิม
+                    setFormData({
+                        visitNumber: String(record.visitNumber || '1').replace(/[^0-9]/g, '') || '1',
+                        visitDate: record.visitDate ? String(record.visitDate).split('T')[0] : '',
+                        deliveryDate: record.deliveryDate ? String(record.deliveryDate).split('T')[0] : '',
+                        motherName: record.motherName || '',
+                        infantName: record.infantName || '',
+                        bp: record.bp || '',
+                        weight: record.weight || '',
+                        infantWeight: record.infantWeight || '',
+                        infantLength: record.infantLength || '',
+                        infantHeadCircum: record.infantHeadCircum || '',
+                        infantTemp: record.infantTemp || '',
+                        note: record.note || ''
+                    });
+
+                    setMotherChecklist({ vitalSigns: true, breast: true, uterus: true, lochia: true, perineum: true, mentalHealth: true, contraception: true });
+                    setInfantChecklist({ vitalSigns: true, feeding: true, umbilicalCord: true, jaundice: true, excretion: true });
+                    setMotherNotes({});
+                    setInfantNotes({});
+                }
+                
+                setIsSearchModalOpen(false);
+                setIsPrinting(true);
             };
 
             return (
                 <div className="min-h-screen flex flex-col items-center bg-gray-100 font-sans">
                     
-                    {/* ส่วนตรวจเช็คตัวพรีวิวเอกสารก่อนสั่งพิมพ์ */}
                     {isPrinting && (
                         <div className="w-full bg-gray-900 p-4 sticky top-0 z-50 flex flex-col sm:flex-row justify-between items-center text-white gap-3 shadow-lg no-print">
                             <div className="flex items-center gap-2">
@@ -224,7 +262,7 @@
 
                     {!isPrinting && status.message && (
                         <div className="w-full max-w-3xl mt-4 px-4 no-print">
-                            <div className={`p-4 rounded-xl text-center font-medium shadow-md transition-all ${status.type === 'error' ? 'bg-red-100 text-red-700' : status.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                            <div className={`p-4 rounded-xl text-center font-medium shadow-md transition-all ${status.type === 'error' ? 'bg-red-100 text-red-700 border border-red-200' : status.type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
                                 {status.message}
                             </div>
                         </div>
@@ -232,14 +270,10 @@
 
                     <div className={`transition-all duration-300 w-full ${isPrinting ? 'bg-gray-500 py-8 overflow-x-auto' : 'max-w-3xl my-4 md:my-8 px-4'}`}>
                         
-                        {/* ========================================================= */}
-                        {/* 🖨️ VIEW สั่งปริ้น (จัดหน้ามารดา 1 / ทารก 2) */}
-                        {/* ========================================================= */}
+                        {/* VIEW สำหรับ ปริ้น PDF */}
                         {isPrinting ? (
-                            
                             <div id="report-content" className="bg-white mx-auto shadow-2xl" style={{ width: '794px' }}>
-                                
-                                {/* 📄 หน้าที่ 1: รายงานคุณแม่หลังคลอด */}
+                                {/* หน้า 1: มารดา */}
                                 <div className="a4-page text-black relative">
                                     <div>
                                         <div className="text-center pb-4 mb-4 border-b-2 border-black"> 
@@ -249,10 +283,9 @@
 
                                         <div className="grid grid-cols-2 gap-y-3 mb-4 text-[15px] pb-4 border-b border-dashed border-gray-300">
                                             <div><strong>ชื่อ-สกุล มารดา:</strong> <span className="ml-1 text-gray-800">{formData.motherName || '...................................................'}</span></div>
-                                            <div className="text-right"><strong>วันคลอด:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.birthDate)}</span></div>
-                                            <div><strong>ครั้งที่ลงเยี่ยม:</strong> <span className="ml-1 text-gray-800">เยี่ยมครั้งที่ {formData.visitNumber}</span></div>
-                                            <div className="text-right"><strong>วันที่ประเมินเยี่ยมหลังคลอด:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.visitDate)}</span></div>
-                                            <div><strong>หน่วยบริการ:</strong> <span className="ml-1 text-gray-800">รพ.สต.เกาะแต้ว</span></div>
+                                            <div className="text-right"><strong>วันที่ประเมินลงเยี่ยม:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.visitDate)}</span></div>
+                                            <div><strong>วันคลอด:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.deliveryDate)}</span></div>
+                                            <div className="text-right"><strong>ครั้งที่ลงเยี่ยม:</strong> <span className="ml-1 text-gray-800">เยี่ยมครั้งที่ {formData.visitNumber}</span></div>
                                         </div>
 
                                         <div className="mb-4">
@@ -283,8 +316,7 @@
                                             </div>
                                         </div>
                                     </div>
-
-                                    {/* ลายเซ็นต์หน้าแรก */}
+                                    
                                     <div className="flex justify-end pb-2">
                                         <div className="text-center mr-4">
                                             <div className="flex items-end text-[15px]">
@@ -299,7 +331,7 @@
 
                                 <div className="html2pdf__page-break"></div> 
 
-                                {/* 📄 หน้าที่ 2: รายงานประเมินสุขภาพทารก */}
+                                {/* หน้า 2: ทารก */}
                                 <div className="a4-page text-black relative">
                                     <div>
                                         <div className="text-center pb-4 mb-4 border-b-2 border-black"> 
@@ -312,11 +344,6 @@
                                             <span className="text-[15px] font-semibold text-gray-950">
                                                 ชื่อ-สกุล ทารก: <span className="font-bold text-pink-700 bg-white px-3 py-1 rounded border border-gray-300 ml-2">{formData.infantName || '...................................................'}</span>
                                             </span>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-y-3 mb-4 text-[15px] pb-4 border-b border-dashed border-gray-300">
-                                            <div><strong>วันคลอดทารก:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.birthDate)}</span></div>
-                                            <div className="text-right"><strong>วันที่ประเมินเยี่ยม:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.visitDate)}</span></div>
                                         </div>
 
                                         <div className="mb-5">
@@ -347,8 +374,7 @@
                                             </div>
                                         </div>
                                     </div>
-
-                                    {/* ลายเซ็นต์หน้าสอง */}
+                                    
                                     <div className="flex justify-end pb-2">
                                         <div className="text-center mr-4">
                                             <div className="flex items-end text-[15px]">
@@ -360,46 +386,52 @@
                                         </div>
                                     </div>
                                 </div>
-
                             </div>
-
                         ) : (
                             
-                            // =========================================================
-                            // 💻 VIEW หน้าเว็บกรอกข้อมูล (มี 2 แท็บ)
-                            // =========================================================
-                            <div className="bg-white shadow-xl rounded-2xl overflow-hidden w-full">
-                                <div className="bg-gradient-to-r from-pink-500 to-pink-600 text-white p-6 text-center shadow-md">
+                            /* VIEW หน้าเว็บกรอกข้อมูล */
+                            <div className="bg-white shadow-xl rounded-2xl overflow-hidden w-full relative">
+                                <button 
+                                    onClick={() => setIsSearchModalOpen(true)}
+                                    className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 border border-white/50 text-white text-sm font-semibold py-1.5 px-4 rounded-full transition duration-200 z-10 flex items-center shadow-sm backdrop-blur-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                    ค้นหาประวัติเดิม
+                                </button>
+
+                                <div className="bg-gradient-to-r from-pink-500 to-pink-600 text-white p-6 pt-12 md:pt-6 text-center shadow-md">
                                     <h1 className="text-2xl font-bold">แบบบันทึกการเยี่ยมหลังคลอดมารดาและทารก</h1>
                                     <p className="text-pink-100 mt-1">โรงพยาบาลส่งเสริมสุขภาพตำบลเกาะแต้ว อ.เมือง จ.สงขลา</p>
                                 </div>
 
                                 <div className="p-6 md:p-8">
-                                    {/* ข้อมูลทั่วไปประกอบการประเมิน */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-1">👩 ชื่อ-สกุล มารดา</label>
                                             <input type="text" name="motherName" value={formData.motherName} onChange={handleInputChange} 
-                                                className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm" 
-                                                placeholder="เช่น นางสุดา ใจดี" />
+                                                className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm" placeholder="เช่น นางสุดา ใจดี" />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-1">👶 ชื่อ-สกุล ทารก</label>
                                             <input type="text" name="infantName" value={formData.infantName} onChange={handleInputChange} 
-                                                className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm" 
-                                                placeholder="เช่น เด็กชายสมศักดิ์ ใจดี" />
+                                                className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm" placeholder="เช่น เด็กชายสมศักดิ์ ใจดี" />
                                         </div>
+                                        
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-1">วันคลอด</label>
+                                                <input type="date" name="deliveryDate" value={formData.deliveryDate} onChange={handleInputChange} 
+                                                    className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-1">วันที่เยี่ยม</label>
+                                                <input type="date" name="visitDate" value={formData.visitDate} onChange={handleInputChange} 
+                                                    className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm text-sm" />
+                                            </div>
+                                        </div>
+
                                         <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">👶 วันเกิด / วันคลอด</label>
-                                            <input type="date" name="birthDate" value={formData.birthDate} onChange={handleInputChange} 
-                                                className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">📅 วันที่ประเมินลงเยี่ยม</label>
-                                            <input type="date" name="visitDate" value={formData.visitDate} onChange={handleInputChange} 
-                                                className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm" />
-                                        </div>
-                                        <div className="md:col-span-2">
                                             <label className="block text-sm font-semibold text-gray-700 mb-1">🏆 เยี่ยมครั้งที่</label>
                                             <select name="visitNumber" value={formData.visitNumber} onChange={handleInputChange} 
                                                 className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-all shadow-sm">
@@ -411,41 +443,29 @@
                                     </div>
 
                                     <div className="flex border-b border-gray-200 mb-6 bg-gray-50 rounded-lg p-1">
-                                        <button 
-                                            onClick={() => setActiveTab('mother')}
-                                            className={`flex-1 py-3 text-center font-bold rounded-lg transition-all ${activeTab === 'mother' ? 'text-pink-700 bg-white shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>
-                                            👩 ส่วนตรวจมารดา
-                                        </button>
-                                        <button 
-                                            onClick={() => setActiveTab('infant')}
-                                            className={`flex-1 py-3 text-center font-bold rounded-lg transition-all ${activeTab === 'infant' ? 'text-blue-700 bg-white shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>
-                                            👶 ส่วนตรวจทารก
-                                        </button>
+                                        <button onClick={() => setActiveTab('mother')} className={`flex-1 py-3 text-center font-bold rounded-lg transition-all ${activeTab === 'mother' ? 'text-pink-700 bg-white shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>👩 ส่วนตรวจมารดา</button>
+                                        <button onClick={() => setActiveTab('infant')} className={`flex-1 py-3 text-center font-bold rounded-lg transition-all ${activeTab === 'infant' ? 'text-blue-700 bg-white shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>👶 ส่วนตรวจทารก</button>
                                     </div>
 
-                                    {/* แท็บตรวจร่างกาย มารดา */}
                                     <div className={`${activeTab === 'mother' ? 'block' : 'hidden'} mb-8 animate-fade-in`}>
                                         <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                                            <span className="bg-pink-100 text-pink-600 w-7 h-7 rounded-full flex items-center justify-center mr-2 text-sm">👩</span>
-                                            ประเมินและวัดสัญญาณชีพมารดา
+                                            <span className="bg-pink-100 text-pink-600 w-7 h-7 rounded-full flex items-center justify-center mr-2 text-sm">👩</span>ประเมินและวัดสัญญาณชีพมารดา
                                         </h2>
                                         <div className="grid grid-cols-2 gap-4 mb-6 bg-pink-50/50 p-4 rounded-xl border border-pink-100 shadow-inner">
                                             <div>
                                                 <label className="block text-xs font-bold text-pink-900 mb-1">ความดันโลหิต (mmHg)</label>
-                                                <input type="text" name="bp" value={formData.bp} onChange={handleInputChange} 
-                                                    className="w-full border border-pink-200 rounded-lg p-2 focus:ring-2 focus:ring-pink-500 bg-white shadow-sm" placeholder="เช่น 115/75" />
+                                                <input type="text" name="bp" value={formData.bp} onChange={handleInputChange} className="w-full border border-pink-200 rounded-lg p-2 focus:ring-2 focus:ring-pink-500 bg-white shadow-sm" placeholder="เช่น 115/75" />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-pink-900 mb-1">น้ำหนักมารดา (กก.)</label>
-                                                <input type="number" step="0.1" name="weight" value={formData.weight} onChange={handleInputChange} 
-                                                    className="w-full border border-pink-200 rounded-lg p-2 focus:ring-2 focus:ring-pink-500 bg-white shadow-sm" placeholder="เช่น 58.4" />
+                                                <input type="number" step="0.1" name="weight" value={formData.weight} onChange={handleInputChange} className="w-full border border-pink-200 rounded-lg p-2 focus:ring-2 focus:ring-pink-500 bg-white shadow-sm" placeholder="เช่น 58.4" />
                                             </div>
                                         </div>
 
                                         <p className="text-xs text-gray-500 mb-3">* ปลดติ๊กถูกออกเพื่อระบุความผิดปกติและช่องพิมพ์จะเด้งขึ้นมาให้จดโน้ตทันที</p>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             <CheckItem label="สัญญาณชีพปกติ (ไม่มีไข้หนาวสั่น)" checked={motherChecklist.vitalSigns} onChange={() => toggleMotherCheck('vitalSigns')} noteValue={motherNotes.vitalSigns} onNoteChange={(e) => handleMotherNoteChange('vitalSigns', e.target.value)} />
-                                            <CheckItem label="เต้านมและหัวนมปกติ (ไม่บวมแดง/ไม่อักเสบ)" checked={motherChecklist.breast} onChange={() => toggleMotherCheck('breast')} noteValue={motherNotes.breast} onNoteChange={(e) => handleMotherNoteChange('breast', e.target.value)} />
+                                            <CheckItem label="เต้านมและหัวนมปกติ (ไม่คัดตึง/ไม่อักเสบ)" checked={motherChecklist.breast} onChange={() => toggleMotherCheck('breast')} noteValue={motherNotes.breast} onNoteChange={(e) => handleMotherNoteChange('breast', e.target.value)} />
                                             <CheckItem label="มดลูกหดรัดตัวดี (ระดับยอดมดลูกปกติ)" checked={motherChecklist.uterus} onChange={() => toggleMotherCheck('uterus')} noteValue={motherNotes.uterus} onNoteChange={(e) => handleMotherNoteChange('uterus', e.target.value)} />
                                             <CheckItem label="น้ำคาวปลาปกติ (สีไม่แดงสดเกินไป/ไม่มีกลิ่นเหม็น)" checked={motherChecklist.lochia} onChange={() => toggleMotherCheck('lochia')} noteValue={motherNotes.lochia} onNoteChange={(e) => handleMotherNoteChange('lochia', e.target.value)} />
                                             <CheckItem label="แผลฝีเย็บ/แผลผ่าตัดปกติ (ไม่บวมแดงอักเสบ)" checked={motherChecklist.perineum} onChange={() => toggleMotherCheck('perineum')} noteValue={motherNotes.perineum} onNoteChange={(e) => handleMotherNoteChange('perineum', e.target.value)} />
@@ -454,32 +474,26 @@
                                         </div>
                                     </div>
 
-                                    {/* แท็บตรวจร่างกาย ทารก */}
                                     <div className={`${activeTab === 'infant' ? 'block' : 'hidden'} mb-8 animate-fade-in`}>
                                         <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                                            <span className="bg-blue-100 text-blue-600 w-7 h-7 rounded-full flex items-center justify-center mr-2 text-sm">👶</span>
-                                            ประเมินภาวะร่างกายและเติบโตทารก
+                                            <span className="bg-blue-100 text-blue-600 w-7 h-7 rounded-full flex items-center justify-center mr-2 text-sm">👶</span>ประเมินภาวะร่างกายและเติบโตทารก
                                         </h2>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-inner">
                                             <div>
                                                 <label className="block text-xs font-bold text-blue-900 mb-1">น้ำหนักตัว (กรัม)</label>
-                                                <input type="number" name="infantWeight" value={formData.infantWeight} onChange={handleInputChange} 
-                                                    className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 3150" />
+                                                <input type="number" name="infantWeight" value={formData.infantWeight} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 3150" />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-blue-900 mb-1">ความยาว (ซม.)</label>
-                                                <input type="number" step="0.1" name="infantLength" value={formData.infantLength} onChange={handleInputChange} 
-                                                    className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 51.5" />
+                                                <input type="number" step="0.1" name="infantLength" value={formData.infantLength} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 51.5" />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-blue-900 mb-1">รอบศีรษะ (ซม.)</label>
-                                                <input type="number" step="0.1" name="infantHeadCircum" value={formData.infantHeadCircum} onChange={handleInputChange} 
-                                                    className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 34" />
+                                                <input type="number" step="0.1" name="infantHeadCircum" value={formData.infantHeadCircum} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 34" />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-blue-900 mb-1">อุณหภูมิ (°C)</label>
-                                                <input type="number" step="0.1" name="infantTemp" value={formData.infantTemp} onChange={handleInputChange} 
-                                                    className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 36.8" />
+                                                <input type="number" step="0.1" name="infantTemp" value={formData.infantTemp} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 36.8" />
                                             </div>
                                         </div>
 
@@ -500,31 +514,94 @@
                                             placeholder="ระบุข้อแนะนำเพิ่มเติมเพื่อการติดตามผล..."></textarea>
                                     </div>
 
-                                    <div id="action-buttons" className="flex flex-col sm:flex-row gap-4 justify-center mt-8 no-print">
+                                    <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8 no-print">
                                         <button onClick={saveToGoogleSheets} 
                                             className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl transition duration-200 flex items-center justify-center shadow-lg shadow-green-100">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                            </svg>
-                                            บันทึกลง Google Sheets
+                                            💾 บันทึกลง Google Sheets
                                         </button>
-                                        
                                         <button onClick={() => setIsPrinting(true)} 
                                             className="flex-1 bg-pink-500 hover:bg-pink-600 text-white font-bold py-3 px-6 rounded-xl transition duration-200 flex items-center justify-center shadow-lg shadow-pink-100">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
-                                            </svg>
-                                            พิมพ์ตรวจพรีวิวและดาวน์โหลด (PDF)
+                                            🖨️ พิมพ์พรีวิวและโหลด (PDF)
                                         </button>
                                     </div>
                                     
-                                    <div className="mt-8 text-center text-gray-400 text-xs">
-                                        พยาบาลผู้บันทึก: โรงพยาบาลส่งเสริมสุขภาพตำบลเกาะแต้ว
-                                    </div>
+                                    <div className="mt-8 text-center text-gray-400 text-xs">พยาบาลผู้บันทึก: โรงพยาบาลส่งเสริมสุขภาพตำบลเกาะแต้ว</div>
                                 </div>
                             </div>
                         )}
                     </div>
+
+                    {/* MODAL ค้นหาประวัติการเยี่ยม */}
+                    {isSearchModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 modal-overlay animate-fade-in">
+                            <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                                <div className="bg-gray-800 px-6 py-4 flex justify-between items-center text-white">
+                                    <h3 className="font-bold text-lg flex items-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                                        </svg>
+                                        ค้นหาประวัติการเยี่ยม
+                                    </h3>
+                                    <button onClick={() => setIsSearchModalOpen(false)} className="text-gray-300 hover:text-white transition">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+                                
+                                <div className="p-6 bg-gray-50 border-b border-gray-200">
+                                    <div className="flex gap-3">
+                                        <input 
+                                            type="text" 
+                                            placeholder="พิมพ์ชื่อคุณแม่ หรือ ชื่อทารก เพื่อค้นหา..." 
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                            className="flex-1 border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                        <button 
+                                            onClick={handleSearch}
+                                            disabled={isSearching}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 rounded-lg transition disabled:bg-blue-400 flex items-center">
+                                            {isSearching ? 'กำลังค้นหา...' : 'ค้นหาเลย'}
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-2">* ปล่อยว่างแล้วกดค้นหา เพื่อแสดงประวัติทั้งหมด</p>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto p-6 bg-white">
+                                    {searchResults.length === 0 && !isSearching && (
+                                        <div className="text-center py-10 text-gray-400">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                            <p>พิมพ์ชื่อคุณแม่หรือลูกแล้วกดค้นหาได้เลยครับ</p>
+                                        </div>
+                                    )}
+                                    
+                                    {searchResults.length > 0 && (
+                                        <div className="space-y-4">
+                                            {searchResults.slice().reverse().map((record, index) => (
+                                                <div key={index} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="bg-pink-100 text-pink-700 text-xs font-bold px-2 py-0.5 rounded-full">{record.visitNumber}</span>
+                                                            <span className="text-sm text-gray-500 font-medium">วันที่เยี่ยม: {formatThaiDate(record.visitDate)}</span>
+                                                        </div>
+                                                        <p className="font-bold text-gray-900">👩 {record.motherName || 'ไม่ระบุชื่อแม่'}</p>
+                                                        <p className="text-sm text-gray-700 mt-0.5">👶 {record.infantName || 'ไม่ระบุชื่อทารก'}</p>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => loadRecordForPrint(record)}
+                                                        className="w-full sm:w-auto bg-green-100 hover:bg-green-200 text-green-700 font-bold py-2 px-4 rounded-lg border border-green-300 transition text-sm flex items-center justify-center">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                                        ดึงข้อมูลมาปริ้น PDF
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                 </div>
             );
         }
@@ -534,19 +611,13 @@
                 <div className={`p-3.5 border rounded-xl transition-all duration-300 ${checked ? 'bg-pink-50 border-pink-200' : 'bg-red-50 border-red-200 shadow-sm'}`}>
                     <label className="flex items-start cursor-pointer select-none">
                         <div className="flex items-center h-5">
-                            <input type="checkbox" checked={checked} onChange={onChange} 
-                                className={`w-5 h-5 rounded focus:ring-2 transition ${checked ? 'text-pink-600 border-pink-300 focus:ring-pink-500' : 'text-red-600 border-red-400 focus:ring-red-500'}`} />
+                            <input type="checkbox" checked={checked} onChange={onChange} className={`w-5 h-5 rounded focus:ring-2 transition ${checked ? 'text-pink-600 border-pink-300 focus:ring-pink-500' : 'text-red-600 border-red-400 focus:ring-red-500'}`} />
                         </div>
-                        <div className="ml-3 text-sm flex-1">
-                            <span className={`font-semibold ${checked ? 'text-pink-900' : 'text-red-700'}`}>{label}</span>
-                        </div>
+                        <div className="ml-3 text-sm flex-1"><span className={`font-semibold ${checked ? 'text-pink-900' : 'text-red-700'}`}>{label}</span></div>
                     </label>
-                    
                     {!checked && (
                         <div className="mt-2.5 ml-8 animate-fade-in">
-                            <input type="text" value={noteValue || ''} onChange={onNoteChange} 
-                                className="w-full border border-red-300 rounded-lg p-2 text-xs focus:ring-red-500 focus:border-red-500 bg-white placeholder-red-300" 
-                                placeholder="ระบุภาวะผิดปกติ / การรักษา / การช่วยเหลือเบื้องต้น..." />
+                            <input type="text" value={noteValue || ''} onChange={onNoteChange} className="w-full border border-red-300 rounded-lg p-2 text-xs focus:ring-red-500 focus:border-red-500 bg-white placeholder-red-300" placeholder="ระบุภาวะผิดปกติ / การรักษา / การช่วยเหลือเบื้องต้น..." />
                         </div>
                     )}
                 </div>
@@ -556,18 +627,10 @@
         function PrintCheckItem({ label, checked, note }) {
             return (
                 <div className="flex items-start text-[14px] leading-relaxed">
-                    {checked ? (
-                        <span className="text-green-600 font-bold mr-2 text-[18px] leading-none">☑</span>
-                    ) : (
-                        <span className="text-red-600 font-bold mr-2 text-[18px] leading-none">☒</span>
-                    )}
+                    {checked ? <span className="text-green-600 font-bold mr-2 text-[18px] leading-none">☑</span> : <span className="text-red-600 font-bold mr-2 text-[18px] leading-none">☒</span>}
                     <div className={checked ? 'text-gray-800' : 'text-red-600 font-semibold'}>
                         <span>{label}</span>
-                        {!checked && (
-                            <span className="block text-[13px] text-red-500 font-normal mt-1 border-b border-red-100 pb-0.5 leading-snug">
-                                ระบุเพิ่มเติม: {note || 'ไม่ได้ระบุข้อความ'}
-                            </span>
-                        )}
+                        {!checked && <span className="block text-[13px] text-red-500 font-normal mt-1 border-b border-red-100 pb-0.5 leading-snug">ระบุเพิ่มเติม: {note || 'ไม่ได้ระบุข้อความ'}</span>}
                     </div>
                 </div>
             );
