@@ -23,15 +23,23 @@
             .no-print { display: none !important; }
         }
 
-        .a4-page {
+        .a4-page-split {
             width: 794px; 
             height: 1122px; 
-            padding: 75px 56px 56px 56px; 
+            padding: 30px 40px; 
             box-sizing: border-box;
             background-color: white;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+        }
+
+        .half-section {
+            height: 520px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
         }
 
         .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
@@ -63,6 +71,8 @@
                 infantName: '',
                 bp: '',
                 weight: '',
+                motherTemp: '',   
+                motherPulse: '',  
                 infantWeight: '',
                 infantLength: '',
                 infantHeadCircum: '',
@@ -118,7 +128,7 @@
             };
 
             const triggerPDFDownload = () => {
-                setStatus({ type: 'loading', message: 'กำลังแปลงข้อมูลรายงานเป็นไฟล์ PDF...' });
+                setStatus({ type: 'loading', message: 'กำลังแปลงข้อมูลเป็นไฟล์ PDF 1 หน้า (แบ่งครึ่งแม่-ลูก)...' });
                 window.scrollTo(0, 0);
 
                 setTimeout(() => {
@@ -189,10 +199,8 @@
                 }
             };
 
-            // ฟังก์ชันโหลดข้อมูลปรับปรุงใหม่ตรงตามตำแหน่ง Google Sheets จริงของคุณคลิม
             const loadRecordForPrint = (record) => {
                 if (record.rawData && Object.keys(record.rawData).length > 0) {
-                    // 1. กรณีรายการใหม่ที่มี Raw Data
                     const data = record.rawData;
                     setFormData({
                         visitNumber: data.visitNumber || '1',
@@ -202,6 +210,8 @@
                         infantName: data.infantName || '',
                         bp: data.bp || '',
                         weight: data.weight || '',
+                        motherTemp: data.motherTemp || '',
+                        motherPulse: data.motherPulse || '',
                         infantWeight: data.infantWeight || '',
                         infantLength: data.infantLength || '',
                         infantHeadCircum: data.infantHeadCircum || '',
@@ -214,7 +224,6 @@
                     if (data.motherNotes) setMotherNotes(data.motherNotes);
                     if (data.infantNotes) setInfantNotes(data.infantNotes);
                 } else {
-                    // 2. กรณีแกะค่าจากคอลัมน์ตรงๆ ตามตารางสเปรดชีตจริงของคุณคลิม
                     setFormData({
                         visitNumber: String(record.visitNumber || '1').replace(/[^0-9]/g, '') || '1',
                         visitDate: record.visitDate ? String(record.visitDate).split('T')[0] : '',
@@ -223,6 +232,8 @@
                         infantName: record.infantName || '',
                         bp: record.bp || '',
                         weight: record.weight || '',
+                        motherTemp: record.motherTemp || '',
+                        motherPulse: record.motherPulse || '',
                         infantWeight: record.infantWeight || '',
                         infantLength: record.infantLength || '',
                         infantHeadCircum: record.infantHeadCircum || '',
@@ -246,8 +257,8 @@
                     {isPrinting && (
                         <div className="w-full bg-gray-900 p-4 sticky top-0 z-50 flex flex-col sm:flex-row justify-between items-center text-white gap-3 shadow-lg no-print">
                             <div className="flex items-center gap-2">
-                                <span className="bg-pink-600 px-2.5 py-1 rounded-md text-xs font-bold animate-pulse">PREVIEW MODE</span>
-                                <span className="text-sm font-medium">รูปแบบนี้คือสิ่งที่จะอยู่ใน PDF ครับ</span>
+                                <span className="bg-pink-600 px-2.5 py-1 rounded-md text-xs font-bold animate-pulse">PREVIEW 1 PAGE (HALF SPLIT)</span>
+                                <span className="text-sm font-medium">แบ่งครึ่งแม่-ลูก ในกระดาษ A4 หน้าเดียวครับ</span>
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={triggerPDFDownload} className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-5 rounded-lg transition text-sm">
@@ -270,121 +281,122 @@
 
                     <div className={`transition-all duration-300 w-full ${isPrinting ? 'bg-gray-500 py-8 overflow-x-auto' : 'max-w-3xl my-4 md:my-8 px-4'}`}>
                         
-                        {/* VIEW สำหรับ ปริ้น PDF */}
+                        {/* ========================================================= */}
+                        {/* 🖨️ VIEW สั่งปริ้น PDF A4 หน้าเดียว (ครึ่งบนแม่ / ครึ่งล่างลูก) */}
+                        {/* ========================================================= */}
                         {isPrinting ? (
                             <div id="report-content" className="bg-white mx-auto shadow-2xl" style={{ width: '794px' }}>
-                                {/* หน้า 1: มารดา */}
-                                <div className="a4-page text-black relative">
-                                    <div>
-                                        <div className="text-center pb-4 mb-4 border-b-2 border-black"> 
-                                            <h1 className="text-[22px] font-bold leading-tight">แบบบันทึกการเยี่ยมหลังคลอดมารดาและทารก ครั้งที่ {formData.visitNumber}</h1>
-                                            <h2 className="text-[17px] mt-1 text-gray-800">โรงพยาบาลส่งเสริมสุขภาพตำบลเกาะแต้ว อำเภอเมือง จังหวัดสงขลา</h2>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-y-3 mb-4 text-[15px] pb-4 border-b border-dashed border-gray-300">
-                                            <div><strong>ชื่อ-สกุล มารดา:</strong> <span className="ml-1 text-gray-800">{formData.motherName || '...................................................'}</span></div>
-                                            <div className="text-right"><strong>วันที่ประเมินลงเยี่ยม:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.visitDate)}</span></div>
-                                            <div><strong>วันคลอด:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.deliveryDate)}</span></div>
-                                            <div className="text-right"><strong>ครั้งที่ลงเยี่ยม:</strong> <span className="ml-1 text-gray-800">เยี่ยมครั้งที่ {formData.visitNumber}</span></div>
-                                        </div>
-
-                                        <div className="mb-4">
-                                            <h3 className="font-bold text-[15px] bg-gray-200 px-3 py-2 mb-3 rounded border border-gray-300">ส่วนที่ 1: การประเมินสัญญาณชีพและสรีระวิทยา (มารดา)</h3>
-                                            <div className="flex gap-12 mb-4 ml-2 text-[15px] bg-gray-50 p-3 rounded border">
-                                                <div><strong>ความดันโลหิต (Blood Pressure):</strong> <span className="ml-2 font-bold text-gray-950">{formData.bp || '-'}</span> mmHg</div>
-                                                <div><strong>น้ำหนักตัวปัจจุบัน:</strong> <span className="ml-2 font-bold text-gray-950">{formData.weight || '-'}</span> กิโลกรัม</div>
-                                            </div>
-                                        </div>
-
-                                        <div className="mb-4">
-                                            <h3 className="font-bold text-[15px] bg-gray-200 px-3 py-2 mb-3 rounded border border-gray-300">ส่วนที่ 2: รายการประเมินภาวะสุขภาพตามเกณฑ์กระทรวงสาธารณสุข</h3>
-                                            <div className="grid grid-cols-2 gap-x-6 gap-y-4 ml-2">
-                                                <PrintCheckItem label="สัญญาณชีพปกติ (ไม่มีไข้สูง)" checked={motherChecklist.vitalSigns} note={motherNotes.vitalSigns} />
-                                                <PrintCheckItem label="เต้านมและหัวนมปกติ (ไม่คัดตึง/อักเสบ)" checked={motherChecklist.breast} note={motherNotes.breast} />
-                                                <PrintCheckItem label="มดลูกหดรัดตัวดี (ระดับมดลูกสมดุล)" checked={motherChecklist.uterus} note={motherNotes.uterus} />
-                                                <PrintCheckItem label="น้ำคาวปลาปกติ (สีและกลิ่นปกติ)" checked={motherChecklist.lochia} note={motherNotes.lochia} />
-                                                <PrintCheckItem label="แผลฝีเย็บ/แผลผ่าตัดปกติ (ไม่อักเสบ)" checked={motherChecklist.perineum} note={motherNotes.perineum} />
-                                                <PrintCheckItem label="สภาวะจิตใจปกติ (ไม่พบภาวะซึมเศร้า)" checked={motherChecklist.mentalHealth} note={motherNotes.mentalHealth} />
-                                                <PrintCheckItem label="ให้คำแนะนำการปฏิบัติตัวและการคุมกำเนิด" checked={motherChecklist.contraception} note={motherNotes.contraception} />
-                                            </div>
-                                        </div>
-
-                                        <div className="mb-4 mt-8">
-                                            <h3 className="font-bold mb-2 text-[15px] text-gray-900">บันทึกอาการพบเพิ่มเติม / คำแนะนำในการดูแลรักษาเบื้องต้น:</h3>
-                                            <div className="min-h-[90px] border border-gray-400 p-3 bg-white text-gray-800 text-[15px] rounded leading-relaxed">
-                                                {formData.note || 'ไม่พบปัญหาเพิ่มเติม มารดาสามารถปฏิบัติตัวตามคำแนะนำและเกณฑ์ปกติได้ดี'}
-                                            </div>
-                                        </div>
-                                    </div>
+                                <div className="a4-page-split text-black relative">
                                     
-                                    <div className="flex justify-end pb-2">
-                                        <div className="text-center mr-4">
-                                            <div className="flex items-end text-[15px]">
-                                                <span className="whitespace-nowrap">ลงชื่อ</span>
-                                                <span className="border-b border-dotted border-black w-48 mx-2 inline-block h-4"></span>
-                                                <span className="whitespace-nowrap font-bold">ผู้ประเมิน</span>
+                                    {/* ครึ่งบน: ใบบันทึกเยี่ยมมารดา */}
+                                    <div className="half-section">
+                                        <div>
+                                            <div className="text-center pb-1 mb-2 border-b-2 border-black"> 
+                                                <h1 className="text-[17px] font-bold leading-tight">แบบบันทึกการเยี่ยมหลังคลอดมารดา ครั้งที่ {formData.visitNumber}</h1>
+                                                <h2 className="text-[13px] text-gray-800">โรงพยาบาลส่งเสริมสุขภาพตำบลเกาะแต้ว อำเภอเมือง จังหวัดสงขลา</h2>
                                             </div>
-                                            <div className="mt-2 text-[13px] text-gray-700 font-medium">( พยาบาลวิชาชีพ รพ.สต.เกาะแต้ว )</div>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <div className="html2pdf__page-break"></div> 
-
-                                {/* หน้า 2: ทารก */}
-                                <div className="a4-page text-black relative">
-                                    <div>
-                                        <div className="text-center pb-4 mb-4 border-b-2 border-black"> 
-                                            <h1 className="text-[22px] font-bold leading-tight">แบบบันทึกการเยี่ยมหลังคลอดมารดาและทารก ครั้งที่ {formData.visitNumber}</h1>
-                                            <h2 className="text-[17px] mt-1 text-gray-800">โรงพยาบาลส่งเสริมสุขภาพตำบลเกาะแต้ว อำเภอเมือง จังหวัดสงขลา</h2>
-                                        </div>
-
-                                        <div className="bg-gray-200 px-3 py-2.5 rounded border border-gray-300 mb-5 flex flex-wrap items-center justify-between">
-                                            <span className="font-bold text-[15px] text-gray-900">ส่วนที่ 2: การประเมินทารก เยี่ยมครั้งที่ {formData.visitNumber}</span>
-                                            <span className="text-[15px] font-semibold text-gray-950">
-                                                ชื่อ-สกุล ทารก: <span className="font-bold text-pink-700 bg-white px-3 py-1 rounded border border-gray-300 ml-2">{formData.infantName || '...................................................'}</span>
-                                            </span>
-                                        </div>
-
-                                        <div className="mb-5">
-                                            <h3 className="font-bold text-[15px] text-gray-900 mb-3">สัญญาณชีพและการเจริญเติบโตทั่วไปของทารก</h3>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-3.5 rounded border text-[14px]">
-                                                <div><strong>น้ำหนักทารก:</strong> <span className="ml-1 font-bold text-gray-900">{formData.infantWeight || '-'}</span> กรัม</div>
-                                                <div><strong>ความยาว:</strong> <span className="ml-1 font-bold text-gray-900">{formData.infantLength || '-'}</span> ซม.</div>
-                                                <div><strong>รอบศีรษะ:</strong> <span className="ml-1 font-bold text-gray-900">{formData.infantHeadCircum || '-'}</span> ซม.</div>
-                                                <div><strong>อุณหภูมิ:</strong> <span className="ml-1 font-bold text-gray-900">{formData.infantTemp || '-'}</span> °C</div>
+                                            <div className="grid grid-cols-2 gap-y-1 mb-2 text-[12.5px] pb-1.5 border-b border-dashed border-gray-300">
+                                                <div><strong>ชื่อ-สกุล มารดา:</strong> <span className="ml-1 text-gray-800">{formData.motherName || '...........................................'}</span></div>
+                                                <div className="text-right"><strong>วันที่เยี่ยม:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.visitDate)}</span></div>
+                                                <div><strong>วันคลอด:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.deliveryDate)}</span></div>
+                                                <div className="text-right"><strong>ครั้งที่ลงเยี่ยม:</strong> <span className="ml-1 text-gray-800">เยี่ยมครั้งที่ {formData.visitNumber}</span></div>
                                             </div>
-                                        </div>
 
-                                        <div className="mb-5">
-                                            <h3 className="font-bold text-[15px] bg-gray-200 px-3 py-2 mb-3 rounded border border-gray-300">รายการประเมินภาวะสุขภาพเด็กทารกตามเกณฑ์กระทรวง</h3>
-                                            <div className="grid grid-cols-2 gap-x-6 gap-y-4 ml-2">
-                                                <PrintCheckItem label="สัญญาณชีพและอุณหภูมิร่างกายปกติ" checked={infantChecklist.vitalSigns} note={infantNotes.vitalSigns} />
-                                                <PrintCheckItem label="การดูดนมและการกลืนปกติ (กินนมแม่ได้ดี)" checked={infantChecklist.feeding} note={infantNotes.feeding} />
-                                                <PrintCheckItem label="สะดือแห้งดี / ไม่มีอาการกลิ่นหรือติดเชื้อ" checked={infantChecklist.umbilicalCord} note={infantNotes.umbilicalCord} />
-                                                <PrintCheckItem label="ผิวหนังทารกปกติ (ไม่มีภาวะตัวเหลือง)" checked={infantChecklist.jaundice} note={infantNotes.jaundice} />
-                                                <PrintCheckItem label="การขับถ่ายปัสสาวะและอุจจาระปกติ" checked={infantChecklist.excretion} note={infantNotes.excretion} />
+                                            <div className="mb-2">
+                                                <div className="flex justify-between items-center bg-gray-100 px-2.5 py-1 mb-1.5 rounded border border-gray-300">
+                                                    <h3 className="font-bold text-[13px] text-gray-900">ส่วนที่ 1: การประเมินสุขภาพมารดา</h3>
+                                                    <span className="text-[11px] text-gray-800">
+                                                        <strong>BP:</strong> {formData.bp || '-'} | <strong>น้ำหนัก:</strong> {formData.weight || '-'} กก. | <strong>Temp:</strong> {formData.motherTemp || '-'} °C | <strong>Pulse:</strong> {formData.motherPulse || '-'} bpm
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 ml-1">
+                                                    <PrintCheckItem label="สัญญาณชีพปกติ (ไม่มีไข้สูง)" checked={motherChecklist.vitalSigns} note={motherNotes.vitalSigns} />
+                                                    <PrintCheckItem label="เต้านมและหัวนมปกติ (ไม่คัดตึง/อักเสบ)" checked={motherChecklist.breast} note={motherNotes.breast} />
+                                                    <PrintCheckItem label="มดลูกหดรัดตัวดี (ระดับมดลูกสมดุล)" checked={motherChecklist.uterus} note={motherNotes.uterus} />
+                                                    <PrintCheckItem label="น้ำคาวปลาปกติ (สีและกลิ่นปกติ)" checked={motherChecklist.lochia} note={motherNotes.lochia} />
+                                                    <PrintCheckItem label="แผลฝีเย็บ/แผลผ่าตัดปกติ (ไม่อักเสบ)" checked={motherChecklist.perineum} note={motherNotes.perineum} />
+                                                    <PrintCheckItem label="สภาวะจิตใจปกติ (ไม่พบภาวะซึมเศร้า)" checked={motherChecklist.mentalHealth} note={motherNotes.mentalHealth} />
+                                                    <PrintCheckItem label="แนะนำการปฏิบัติตัวและการคุมกำเนิดแล้ว" checked={motherChecklist.contraception} note={motherNotes.contraception} />
+                                                </div>
+                                            </div>
+
+                                            <div className="mb-2">
+                                                <h3 className="font-bold mb-0.5 text-[12px] text-gray-900">บันทึกอาการพบเพิ่มเติม (มารดา):</h3>
+                                                <div className="min-h-[42px] border border-gray-400 p-1.5 bg-white text-gray-800 text-[11.5px] rounded leading-snug">
+                                                    {formData.note || 'มารดาสามารถปฏิบัติตัวตามคำแนะนำและเกณฑ์ปกติได้ดี'}
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <div className="mb-4 mt-8">
-                                            <h3 className="font-bold mb-2 text-[15px] text-gray-900">บันทึกเพิ่มเติมทารก / ปัญหาอื่นที่พบ:</h3>
-                                            <div className="min-h-[90px] border border-gray-400 p-3 bg-white text-gray-800 text-[15px] rounded leading-relaxed">
-                                                {formData.note ? `บันทึกเกี่ยวกับทารก: ${formData.note}` : 'ทารกเจริญเติบโตตามเกณฑ์ดี สุขภาพร่างกายสมบูรณ์และแข็งแรงดี'}
+                                        <div className="flex justify-end pt-1">
+                                            <div className="text-center mr-2">
+                                                <div className="flex items-end text-[12px]">
+                                                    <span className="whitespace-nowrap">ลงชื่อ</span>
+                                                    <span className="border-b border-dotted border-black w-36 mx-1.5 inline-block h-3.5"></span>
+                                                    <span className="whitespace-nowrap font-bold">ผู้ประเมิน</span>
+                                                </div>
+                                                <div className="text-[10.5px] text-gray-700 font-medium">( พยาบาลวิชาชีพ รพ.สต.เกาะแต้ว )</div>
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    <div className="flex justify-end pb-2">
-                                        <div className="text-center mr-4">
-                                            <div className="flex items-end text-[15px]">
-                                                <span className="whitespace-nowrap">ลงชื่อ</span>
-                                                <span className="border-b border-dotted border-black w-48 mx-2 inline-block h-4"></span>
-                                                <span className="whitespace-nowrap font-bold">ผู้ประเมิน</span>
+
+                                    {/* เส้นตัดแบ่งครึ่งกระดาษตรงกลาง */}
+                                    <div className="w-full my-1 border-b-2 border-dashed border-gray-400 relative flex justify-center items-center">
+                                        <span className="bg-white px-3 text-[10px] text-gray-400 tracking-widest font-mono uppercase">✂️ รอยตัดแบ่งครึ่ง A4 ✂️</span>
+                                    </div>
+
+                                    {/* ครึ่งล่าง: ใบบันทึกเยี่ยมทารก */}
+                                    <div className="half-section">
+                                        <div>
+                                            <div className="text-center pb-1 mb-2 border-b-2 border-black"> 
+                                                <h1 className="text-[17px] font-bold leading-tight">แบบบันทึกการเยี่ยมหลังคลอดทารก ครั้งที่ {formData.visitNumber}</h1>
+                                                <h2 className="text-[13px] text-gray-800">โรงพยาบาลส่งเสริมสุขภาพตำบลเกาะแต้ว อำเภอเมือง จังหวัดสงขลา</h2>
                                             </div>
-                                            <div className="mt-2 text-[13px] text-gray-700 font-medium">( พยาบาลวิชาชีพ รพ.สต.เกาะแต้ว )</div>
+
+                                            <div className="grid grid-cols-2 gap-y-1 mb-2 text-[12.5px] pb-1.5 border-b border-dashed border-gray-300">
+                                                <div><strong>ชื่อ-สกุล ทารก:</strong> <span className="ml-1 text-gray-800">{formData.infantName || '...........................................'}</span></div>
+                                                <div className="text-right"><strong>วันที่เยี่ยม:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.visitDate)}</span></div>
+                                                <div><strong>ชื่อมารดา:</strong> <span className="ml-1 text-gray-800">{formData.motherName || '...........................................'}</span></div>
+                                                <div className="text-right"><strong>วันคลอด:</strong> <span className="ml-1 text-gray-800">{formatThaiDate(formData.deliveryDate)}</span></div>
+                                            </div>
+
+                                            <div className="mb-2">
+                                                <div className="flex justify-between items-center bg-gray-100 px-2.5 py-1 mb-1.5 rounded border border-gray-300">
+                                                    <h3 className="font-bold text-[13px] text-gray-900">ส่วนที่ 2: การประเมินสุขภาพทารก</h3>
+                                                    <span className="text-[11px] text-gray-800">
+                                                        <strong>น้ำหนัก:</strong> {formData.infantWeight || '-'} กรัม | <strong>ยาว:</strong> {formData.infantLength || '-'} ซม. | <strong>รอบศีรษะ:</strong> {formData.infantHeadCircum || '-'} ซม. | <strong>Temp:</strong> {formData.infantTemp || '-'} °C
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 ml-1">
+                                                    <PrintCheckItem label="สัญญาณชีพและอุณหภูมิร่างกายปกติ" checked={infantChecklist.vitalSigns} note={infantNotes.vitalSigns} />
+                                                    <PrintCheckItem label="การดูดนมและการกลืนปกติ (กินนมแม่ได้ดี)" checked={infantChecklist.feeding} note={infantNotes.feeding} />
+                                                    <PrintCheckItem label="สะดือแห้งดี / ไม่มีอาการกลิ่นหรือติดเชื้อ" checked={infantChecklist.umbilicalCord} note={infantNotes.umbilicalCord} />
+                                                    <PrintCheckItem label="ผิวหนังทารกปกติ (ไม่มีภาวะตัวเหลือง)" checked={infantChecklist.jaundice} note={infantNotes.jaundice} />
+                                                    <PrintCheckItem label="การขับถ่ายปัสสาวะและอุจจาระปกติ" checked={infantChecklist.excretion} note={infantNotes.excretion} />
+                                                </div>
+                                            </div>
+
+                                            <div className="mb-2">
+                                                <h3 className="font-bold mb-0.5 text-[12px] text-gray-900">บันทึกอาการพบเพิ่มเติม (ทารก):</h3>
+                                                <div className="min-h-[42px] border border-gray-400 p-1.5 bg-white text-gray-800 text-[11.5px] rounded leading-snug">
+                                                    {formData.note ? `บันทึกทารก: ${formData.note}` : 'ทารกเจริญเติบโตตามเกณฑ์ดี สุขภาพร่างกายสมบูรณ์ดี'}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-end pt-1">
+                                            <div className="text-center mr-2">
+                                                <div className="flex items-end text-[12px]">
+                                                    <span className="whitespace-nowrap">ลงชื่อ</span>
+                                                    <span className="border-b border-dotted border-black w-36 mx-1.5 inline-block h-3.5"></span>
+                                                    <span className="whitespace-nowrap font-bold">ผู้ประเมิน</span>
+                                                </div>
+                                                <div className="text-[10.5px] text-gray-700 font-medium">( พยาบาลวิชาชีพ รพ.สต.เกาะแต้ว )</div>
+                                            </div>
                                         </div>
                                     </div>
+
                                 </div>
                             </div>
                         ) : (
@@ -447,18 +459,28 @@
                                         <button onClick={() => setActiveTab('infant')} className={`flex-1 py-3 text-center font-bold rounded-lg transition-all ${activeTab === 'infant' ? 'text-blue-700 bg-white shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>👶 ส่วนตรวจทารก</button>
                                     </div>
 
+                                    {/* ส่วนตรวจมารดา (เพิ่ม Temp และ Pulse) */}
                                     <div className={`${activeTab === 'mother' ? 'block' : 'hidden'} mb-8 animate-fade-in`}>
                                         <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                                             <span className="bg-pink-100 text-pink-600 w-7 h-7 rounded-full flex items-center justify-center mr-2 text-sm">👩</span>ประเมินและวัดสัญญาณชีพมารดา
                                         </h2>
-                                        <div className="grid grid-cols-2 gap-4 mb-6 bg-pink-50/50 p-4 rounded-xl border border-pink-100 shadow-inner">
+                                        
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 bg-pink-50/50 p-4 rounded-xl border border-pink-100 shadow-inner">
                                             <div>
-                                                <label className="block text-xs font-bold text-pink-900 mb-1">ความดันโลหิต (mmHg)</label>
-                                                <input type="text" name="bp" value={formData.bp} onChange={handleInputChange} className="w-full border border-pink-200 rounded-lg p-2 focus:ring-2 focus:ring-pink-500 bg-white shadow-sm" placeholder="เช่น 115/75" />
+                                                <label className="block text-xs font-bold text-pink-900 mb-1">ความดัน (mmHg)</label>
+                                                <input type="text" name="bp" value={formData.bp} onChange={handleInputChange} className="w-full border border-pink-200 rounded-lg p-2 focus:ring-2 focus:ring-pink-500 bg-white text-sm" placeholder="เช่น 120/80" />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-bold text-pink-900 mb-1">น้ำหนักมารดา (กก.)</label>
-                                                <input type="number" step="0.1" name="weight" value={formData.weight} onChange={handleInputChange} className="w-full border border-pink-200 rounded-lg p-2 focus:ring-2 focus:ring-pink-500 bg-white shadow-sm" placeholder="เช่น 58.4" />
+                                                <label className="block text-xs font-bold text-pink-900 mb-1">น้ำหนัก (กก.)</label>
+                                                <input type="number" step="0.1" name="weight" value={formData.weight} onChange={handleInputChange} className="w-full border border-pink-200 rounded-lg p-2 focus:ring-2 focus:ring-pink-500 bg-white text-sm" placeholder="เช่น 58.4" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-pink-900 mb-1">อุณหภูมิ (°C)</label>
+                                                <input type="number" step="0.1" name="motherTemp" value={formData.motherTemp} onChange={handleInputChange} className="w-full border border-pink-200 rounded-lg p-2 focus:ring-2 focus:ring-pink-500 bg-white text-sm" placeholder="เช่น 36.6" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-pink-900 mb-1">อัตราการเต้นหัวใจ (bpm)</label>
+                                                <input type="number" name="motherPulse" value={formData.motherPulse} onChange={handleInputChange} className="w-full border border-pink-200 rounded-lg p-2 focus:ring-2 focus:ring-pink-500 bg-white text-sm" placeholder="เช่น 78" />
                                             </div>
                                         </div>
 
@@ -474,6 +496,7 @@
                                         </div>
                                     </div>
 
+                                    {/* ส่วนตรวจทารก */}
                                     <div className={`${activeTab === 'infant' ? 'block' : 'hidden'} mb-8 animate-fade-in`}>
                                         <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                                             <span className="bg-blue-100 text-blue-600 w-7 h-7 rounded-full flex items-center justify-center mr-2 text-sm">👶</span>ประเมินภาวะร่างกายและเติบโตทารก
@@ -481,19 +504,19 @@
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-inner">
                                             <div>
                                                 <label className="block text-xs font-bold text-blue-900 mb-1">น้ำหนักตัว (กรัม)</label>
-                                                <input type="number" name="infantWeight" value={formData.infantWeight} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 3150" />
+                                                <input type="number" name="infantWeight" value={formData.infantWeight} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white text-sm" placeholder="เช่น 3150" />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-blue-900 mb-1">ความยาว (ซม.)</label>
-                                                <input type="number" step="0.1" name="infantLength" value={formData.infantLength} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 51.5" />
+                                                <input type="number" step="0.1" name="infantLength" value={formData.infantLength} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white text-sm" placeholder="เช่น 51.5" />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-blue-900 mb-1">รอบศีรษะ (ซม.)</label>
-                                                <input type="number" step="0.1" name="infantHeadCircum" value={formData.infantHeadCircum} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 34" />
+                                                <input type="number" step="0.1" name="infantHeadCircum" value={formData.infantHeadCircum} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white text-sm" placeholder="เช่น 34" />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-blue-900 mb-1">อุณหภูมิ (°C)</label>
-                                                <input type="number" step="0.1" name="infantTemp" value={formData.infantTemp} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white" placeholder="เช่น 36.8" />
+                                                <input type="number" step="0.1" name="infantTemp" value={formData.infantTemp} onChange={handleInputChange} className="w-full border border-blue-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 bg-white text-sm" placeholder="เช่น 36.8" />
                                             </div>
                                         </div>
 
@@ -521,7 +544,7 @@
                                         </button>
                                         <button onClick={() => setIsPrinting(true)} 
                                             className="flex-1 bg-pink-500 hover:bg-pink-600 text-white font-bold py-3 px-6 rounded-xl transition duration-200 flex items-center justify-center shadow-lg shadow-pink-100">
-                                            🖨️ พิมพ์พรีวิวและโหลด (PDF)
+                                            🖨️ พิมพ์พรีวิวและโหลด (PDF 1 หน้า)
                                         </button>
                                     </div>
                                     
@@ -626,11 +649,11 @@
 
         function PrintCheckItem({ label, checked, note }) {
             return (
-                <div className="flex items-start text-[14px] leading-relaxed">
-                    {checked ? <span className="text-green-600 font-bold mr-2 text-[18px] leading-none">☑</span> : <span className="text-red-600 font-bold mr-2 text-[18px] leading-none">☒</span>}
+                <div className="flex items-start text-[11.5px] leading-snug">
+                    {checked ? <span className="text-green-600 font-bold mr-1.5 text-[14px] leading-none">☑</span> : <span className="text-red-600 font-bold mr-1.5 text-[14px] leading-none">☒</span>}
                     <div className={checked ? 'text-gray-800' : 'text-red-600 font-semibold'}>
                         <span>{label}</span>
-                        {!checked && <span className="block text-[13px] text-red-500 font-normal mt-1 border-b border-red-100 pb-0.5 leading-snug">ระบุเพิ่มเติม: {note || 'ไม่ได้ระบุข้อความ'}</span>}
+                        {!checked && <span className="block text-[10.5px] text-red-500 font-normal mt-0.5 border-b border-red-100 pb-0.5 leading-tight">ระบุเพิ่มเติม: {note || 'ไม่ได้ระบุข้อความ'}</span>}
                     </div>
                 </div>
             );
